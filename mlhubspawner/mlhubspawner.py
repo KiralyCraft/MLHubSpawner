@@ -4,15 +4,15 @@ from traitlets import List, Instance
 from jupyterhub.spawner import Spawner
 
 # Local imports
-from remote_hosts.remote_ml_host import RemoteMLHost
-from config_parsers import DictionaryInstanceParser
-
+from .remote_hosts.remote_ml_host import RemoteMLHost
+from .config_parsers import DictionaryInstanceParser
+from .form_builder import JupyterFormBuilder
 
 class MLHubSpawner(Spawner):
 
-
-    def __init__(self):
-        pass
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.form_builder = JupyterFormBuilder()
 
     # Remote hosts read from the configuration file
     remote_hosts = List(DictionaryInstanceParser(RemoteMLHost), help="Possible remote hosts from which to choose remote_host.", config=True)
@@ -33,23 +33,29 @@ class MLHubSpawner(Spawner):
     def load_state(self, state):
         super().load_state(state)
         if "pid" in state:
-            self.pid = state["pid"]
+            self.state_pid = state["pid"]
         if "remote_ip" in state:
-            self.remote_ip = state["remote_ip"]
+            self.state_remote_ip = state["remote_ip"]
 
     # Retrieve the current state of the spawner as a dictionary.
     def get_state(self):
         state = super().get_state()
-        if self.pid:
-            state["pid"] = self.pid
-        if self.remote_ip:
-            state["remote_ip"] = self.remote_ip
+        if self.state_pid:
+            state["pid"] = self.state_pid
+        if self.state_remote_ip:
+            state["remote_ip"] = self.state_remote_ip
         return state
 
     # Clear the spawner state, resetting remote IP and PID.
     def clear_state(self):
         super().clear_state()
-        self.remote_ip = "remote_ip"
-        self.pid = 0
+        self.state_remote_ip = "remote_ip"
+        self.state_pid = 0
 
-    
+    #==== FORM DATA ====
+    def _options_form_default(self):
+        localMachineDictionary = [host.toDictionary() for host in self.remote_hosts]
+        return self.form_builder.get_html_page(localMachineDictionary)
+
+    def options_from_form(self, formdata):
+        pass

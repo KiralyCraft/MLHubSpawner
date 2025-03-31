@@ -1,15 +1,93 @@
-<div class="form-group">
-    <label for="instance_type">Select your instance type</label>
-    <select class="form-control" name="instance_type">
-        <option value="small">1 x RTX 4090</option>
-        <option value="medium">2 x Tesla K40m </option>
-        <option value="large">Large</option>
-    </select>
-</div>
-<div class="form-group">
-    <div class="checkbox">
+<div class="container">
+    <h1>Machine Configurations</h1>
+
+    <!-- Machine Selection Form -->
+    <div class="form-group">
+        <label for="machineSelect">Select your machine</label>
+        <select class="form-control" id="machineSelect" onchange="updateMachineDetails();">
+        <!-- Options will be populated by JavaScript -->
+        </select>
+    </div>
+    <div class="form-group">
+        <div class="checkbox">
         <label>
-            <input type="checkbox" name="exclusive_access"> I want exclusive access to this machine
+            <input type="checkbox" name="exclusive_access" id="exclusiveAccess" onchange="populateMachineOptions();">
+            I want exclusive access to this machine
         </label>
+        </div>
+    </div>
+
+    <!-- Machine Details Display -->
+    <div id="machineDetails" class="well">
+        <!-- Details will be populated by JavaScript -->
     </div>
 </div>
+  
+<script>
+// 'machines' should be passed from your server using Jinja2's tojson filter.
+var machines = '{machineData}';
+var filteredMachinesList = [];
+
+function displayMachineDetailsFromFiltered(index) 
+{
+    var detailsDiv = document.getElementById('machineDetails');
+    if (!filteredMachinesList[index]) {
+    detailsDiv.innerHTML = "<p>No machines available</p>";
+    return;
+    }
+    var machine = filteredMachinesList[index];
+    var detailsHtml = '<h3>Machine Details</h3>';
+    detailsHtml += '<p><strong>Hostname:</strong> ' + machine.hostname + '</p>';
+    detailsHtml += '<p><strong>Port:</strong> ' + machine.port + '</p>';
+    detailsHtml += '<p><strong>Total Instances:</strong> ' + machine.total_instances + '</p>';
+    detailsHtml += '<p><strong>Exclusive Access Enabled:</strong> ' + machine.exclusive_access_enabled + '</p>';
+    detailsHtml += '<p><strong>CPU Model:</strong> ' + machine.cpu_model + '</p>';
+    detailsHtml += '<p><strong>CPU Cores:</strong> ' + machine.cpu_cores + '</p>';
+    detailsHtml += '<p><strong>RAM:</strong> ' + machine.ram + ' GB</p>';
+    detailsHtml += '<p><strong>GPUs:</strong> ' + machine.gpu.join(', ') + '</p>';
+    detailsHtml += '<p><strong>Storage:</strong> ' + machine.storage[0] + ', ' + machine.storage[1] + ' GB</p>';
+    detailsDiv.innerHTML = detailsHtml;
+}
+
+function populateMachineOptions() 
+{
+    var machineSelect = document.getElementById('machineSelect');
+    machineSelect.innerHTML = "";
+    
+    var requireExclusive = document.getElementById('exclusiveAccess').checked;
+    filteredMachinesList = machines.filter(function(machine) {
+    return (!requireExclusive) || machine.exclusive_access_enabled;
+    });
+    
+    if (filteredMachinesList.length === 0) {
+    var opt = document.createElement('option');
+    opt.textContent = "No machines available";
+    opt.value = "";
+    opt.disabled = true;
+    machineSelect.appendChild(opt);
+    document.getElementById('machineDetails').innerHTML = "<p>No machines available</p>";
+    return;
+    }
+    
+    filteredMachinesList.forEach(function(machine, index) {
+    var option = document.createElement('option');
+    option.value = index;
+    option.textContent = machine.hostname + ':' + machine.port;
+    machineSelect.appendChild(option);
+    });
+    
+    // Display details for the first machine.
+    displayMachineDetailsFromFiltered(0);
+}
+
+function updateMachineDetails() 
+{
+    var machineSelect = document.getElementById('machineSelect');
+    var index = machineSelect.value;
+    displayMachineDetailsFromFiltered(index);
+}
+
+// Call the function directly to populate the dropdown on load.
+populateMachineOptions();
+</script>
+  

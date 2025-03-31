@@ -2,12 +2,9 @@
 
 from traitlets.config import Configurable, Config
 from traitlets import List, Instance, TraitError
-from remote_hosts.remote_ml_host import RemoteMLHost
-from config_parsers import DictionaryInstanceParser
-
-class MLHostSpawner(Configurable):
-    # Use the custom trait to allow conversion from dict to RemoteMLHost.
-    remote_hosts = List(DictionaryInstanceParser(RemoteMLHost), help="Possible remote hosts from which to choose remote_host.", config=True)
+from .remote_hosts.remote_ml_host import RemoteMLHost
+from .config_parsers import DictionaryInstanceParser
+from .mlhubspawner import MLHubSpawner
 
 if __name__ == "__main__":
     # Simulate a configuration file loaded as a Config object.
@@ -39,16 +36,18 @@ if __name__ == "__main__":
             "storage": ("NVMe", 2048)
         },
     ]
-    config.MLHostSpawner = spawner_config
+    config.MLHubSpawner = spawner_config
     
     # Instantiate the spawner with the configuration.
-    spawner = MLHostSpawner(config=config)
+    spawner = MLHubSpawner(config=config)
     
     print("Testing MLHostSpawner with remote_hosts:")
-    for host in spawner.remote_hosts:
-        print(f"ML Host: {host.hostname}:{host.port}")
-        print(f"   CPU: {host.cpu_model} ({host.cpu_cores} cores)")
-        print(f"   RAM: {host.ram}GB")
-        print(f"   GPUs: {host.gpu}")
-        print(f"   Storage: {host.storage}")
-        print(f"   Instances: {host.total_instances}, Exclusive Access: {host.exclusive_access_enabled}\n")
+    print(spawner._options_form_default())
+    #for host in spawner.remote_hosts:
+    #    print(host.toJSON())
+        # print(f"ML Host: {host.hostname}:{host.port}")
+        # print(f"   CPU: {host.cpu_model} ({host.cpu_cores} cores)")
+        # print(f"   RAM: {host.ram}GB")
+        # print(f"   GPUs: {host.gpu}")
+        # print(f"   Storage: {host.storage}")
+        # print(f"   Instances: {host.total_instances}, Exclusive Access: {host.exclusive_access_enabled}\n")
