@@ -1,14 +1,14 @@
 from traitlets.config import Configurable
-from traitlets import  Unicode, Integer, Bool
+from traitlets import  Unicode, Integer, Bool, List
 import json
 
 class RemoteGenericHost(Configurable):
+    # The codename for this machine. There can be multiple instances of this type.
+    codename = Unicode(help="The unique codename for this machine").tag(config=True)
+
     # Define fields for a remote host.
-    hostname = Unicode(help="The remote host address").tag(config=True)
+    hostnames = List(Unicode(), help="List of hostnames where this machine type is available").tag(config=True)
     port = Integer(help="The port for the remote host").tag(config=True)
-        
-    # Total instances available for this configuration
-    total_instances = Integer(help="Total instances available").tag(config=True)
 
     # Whether exclusive access is enabled (True/False)
     exclusive_access_enabled = Bool(help="Whether exclusive access is enabled").tag(config=True)

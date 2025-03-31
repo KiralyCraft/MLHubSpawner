@@ -10,12 +10,12 @@ from .form_builder import JupyterFormBuilder
 
 class MLHubSpawner(Spawner):
 
+    # Remote hosts read from the configuration file
+    remote_hosts = List(DictionaryInstanceParser(RemoteMLHost), help="Possible remote hosts from which to choose remote_host.", config=True)
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.form_builder = JupyterFormBuilder()
-
-    # Remote hosts read from the configuration file
-    remote_hosts = List(DictionaryInstanceParser(RemoteMLHost), help="Possible remote hosts from which to choose remote_host.", config=True)
 
     #==== STARTING, STOPPPING, POLLING ====
     async def start(self):
