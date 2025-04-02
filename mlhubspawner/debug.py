@@ -39,9 +39,9 @@ if __name__ == "__main__":
     
     # Instantiate the spawner with the configuration.
     spawner = MLHubSpawner(config=config)
-    spawner.user.name = "alexandru.kiraly@ubbcluj.ro"
+    #spawner.user.name = "alexandru.kiraly@ubbcluj.ro"
 
     # Check what remote_hosts is set to:
-    print("remote_hosts:", spawner.start())
+    print("remote_hosts:", spawner.debug())
     #print("Options form:", spawner._options_form_default())
 

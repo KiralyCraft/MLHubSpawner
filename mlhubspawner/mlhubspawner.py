@@ -10,6 +10,7 @@ from .form_builder import JupyterFormBuilder
 from .exceptions.jupyter_html_exception import JupyterHubHTMLException
 from .state_manager import spawner_load_state, spawner_get_state, spawner_clear_state
 from .account_manager import get_privilege, get_safe_username
+from .machine_manager import MachineManager
 
 # Python imports
 import time
@@ -22,10 +23,10 @@ class MLHubSpawner(Spawner):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.form_builder = JupyterFormBuilder()
+        self.machine_manager = MachineManager(self.remote_hosts)
 
         self.state_codename = None
         self.state_hostname = None
-
 
     #==== STARTING, STOPPPING, POLLING ====
     def __slowError(self, errorMessage):
@@ -44,7 +45,14 @@ class MLHubSpawner(Spawner):
             self.__slowError("Your account privilege does not allow for exclusive access to GPU machines.")
         
         #=== FIND MACHINE ===
-        self.log.info("yeah" + safe_username)
+        (foundMachineHostname, foundMachinePort) = self.machine_manager.find_machine(machine_select, exclusive_access_desired)
+
+        if foundMachineHostname == None:
+            self.__slowError("We're sorry, but there is no available machine that meets your current requirements.")
+
+        #=== LAUNCH NOTEBOOK ===
+
+
         return ("0.0.0.0","3306")
 
     async def poll(self):
@@ -73,7 +81,7 @@ class MLHubSpawner(Spawner):
 
     #==== FORM DATA ====
 
-    # Return the actual HTML page for the form
+    # Return the actual HTML page for the form.
     def _options_form_default(self):
         localMachineDictionary = [host.toDictionary() for host in self.remote_hosts]
         return self.form_builder.get_html_page(localMachineDictionary)
