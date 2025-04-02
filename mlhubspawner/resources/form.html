@@ -1,41 +1,32 @@
 <style>
-    /* Tighter spacing for the details section paragraphs */
-    .details-list p {
-      margin: 0;
-      margin-bottom: 5px;
-    }
-  </style>
-  
-  <div class="container">
-    <!-- Machine Selection Form -->
-    <div class="form-group mb-3">
-      <div class="checkbox">
-        <label>
-          <input type="checkbox" name="exclusive_access" id="exclusiveAccess" onchange="populateMachineOptions();">
-          Only show machines with exclusive access
-        </label>
-      </div>
-    </div>
-    
-    <div class="form-group mb-3">
-      <label for="machineSelect">Select your machine type</label>
-      <select class="form-control" id="machineSelect" onchange="updateMachineDetails();">
-        <!-- Options will be populated by JavaScript -->
-      </select>
-    </div>
-    
-    <!-- Machine Details Display -->
-    <div id="machineDetails" class="well details-list mb-3">
-      <!-- Details will be populated by JavaScript -->
-    </div>
+  /* Tighter spacing for the details section paragraphs */
+  .details-list p {
+    margin: 0;
+    margin-bottom: 5px;
+  }
+</style>
+
+<div class="container">
+  <!-- Machine Selection Form -->
+  <div class="form-group mb-3">
+    <label for="machineSelect">Select your machine type</label>
+    <select class="form-control" id="machineSelect" onchange="updateMachineDetails();">
+      <!-- Options will be populated by JavaScript -->
+    </select>
   </div>
-    
-  <script>
+
+  <!-- Machine Details Display -->
+  <div id="machineDetails" class="well details-list mb-3">
+    <!-- Details will be populated by JavaScript -->
+  </div>
+</div>
+
+<script>
   // 'machines' should be passed from your server using Jinja2's tojson filter.
   var machinesString = '{machineData}';
   var machines = JSON.parse(machinesString);
-  var filteredMachinesList = [];
-  
+  var filteredMachinesList = machines; // No filtering needed.
+
   function displayMachineDetailsFromFiltered(index) {
     var detailsDiv = document.getElementById('machineDetails');
     if (!filteredMachinesList[index]) {
@@ -44,27 +35,28 @@
     }
     var machine = filteredMachinesList[index];
     var detailsHtml = '<h3>Machine Details</h3>';
-    detailsHtml += '<p><strong>Hostnames:</strong> ' + machine.hostnames.join(', ') + '</p>';
-    detailsHtml += '<p><strong>Total Instances:</strong> ' + machine.hostnames.length + '</p>';
-    detailsHtml += '<p><strong>Port:</strong> ' + machine.port + '</p>';
-    detailsHtml += '<p><strong>Exclusive Access Enabled:</strong> ' + machine.exclusive_access_enabled + '</p>';
+    detailsHtml += '<p><strong>Total Instances:</strong> ' + (machine.total_instances || 1) + '</p>';
     detailsHtml += '<p><strong>CPU Model:</strong> ' + machine.cpu_model + '</p>';
     detailsHtml += '<p><strong>CPU Cores:</strong> ' + machine.cpu_cores + '</p>';
     detailsHtml += '<p><strong>RAM:</strong> ' + machine.ram + ' GB</p>';
     detailsHtml += '<p><strong>GPUs:</strong> ' + machine.gpu.join(', ') + '</p>';
-    detailsHtml += '<p><strong>Storage:</strong> ' + machine.storage[0] + ', ' + machine.storage[1] + ' GB</p>';
+
+    // Display storage details as a bullet list.
+    detailsHtml += '<p><strong>Storage:</strong></p>';
+    detailsHtml += '<ul>';
+    machine.storage.forEach(function(storageItem) {
+      detailsHtml += '<li>' + storageItem[0] + ': ' + storageItem[1] + ' GB</li>';
+    });
+    detailsHtml += '</ul>';
+
     detailsDiv.innerHTML = detailsHtml;
   }
-  
+
   function populateMachineOptions() {
     var machineSelect = document.getElementById('machineSelect');
     machineSelect.innerHTML = "";
-    
-    var requireExclusive = document.getElementById('exclusiveAccess').checked;
-    filteredMachinesList = machines.filter(function(machine) {
-      return (!requireExclusive) || machine.exclusive_access_enabled;
-    });
-    
+    filteredMachinesList = machines;
+
     if (filteredMachinesList.length === 0) {
       var opt = document.createElement('option');
       opt.textContent = "No machines available";
@@ -74,26 +66,25 @@
       document.getElementById('machineDetails').innerHTML = "<p>No machines available</p>";
       return;
     }
-    
+
     filteredMachinesList.forEach(function(machine, index) {
       var option = document.createElement('option');
       option.value = index;
-      // Display the first hostname from the array along with the port as the option text.
-      option.textContent = (machine.hostnames.length > 0 ? machine.hostnames[0] : "No hostname");
+      // Use the codename for the dropdown label.
+      option.textContent = machine.codename;
       machineSelect.appendChild(option);
     });
-    
+
     // Display details for the first machine by default.
     displayMachineDetailsFromFiltered(0);
   }
-  
+
   function updateMachineDetails() {
     var machineSelect = document.getElementById('machineSelect');
     var index = machineSelect.value;
     displayMachineDetailsFromFiltered(index);
   }
-  
+
   // Populate the dropdown on page load.
   populateMachineOptions();
-  </script>
-  
+</script>

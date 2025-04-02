@@ -16,4 +16,4 @@ class RemoteMLHost(RemoteGenericHost):
     gpu = List(Unicode(), help="List of GPU models").tag(config=True)
     
     # Storage configuration as a tuple (storage type and size)
-    storage = Tuple(Unicode(), Integer(), help="Storage configuration as (type, size)").tag(config=True)
+    storage = List(Tuple(Unicode(), Integer()), help="Storage configuration as (type, size)").tag(config=True)

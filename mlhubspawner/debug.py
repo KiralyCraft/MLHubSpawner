@@ -21,7 +21,7 @@ if __name__ == "__main__":
             "cpu_cores": 16,
             "ram": 64,
             "gpu": ["NVIDIA Tesla V100", "NVIDIA Tesla P100"],
-            "storage": ("SSD", 1024)
+            "storage": [("SSD", 1024),("SSDE", 1024)]
         },
         { 
             "codename": "Yeah",
@@ -32,7 +32,7 @@ if __name__ == "__main__":
             "cpu_cores": 32,
             "ram": 128,
             "gpu": ["NVIDIA Tesla A100"],
-            "storage": ("NVMe", 2048)
+            "storage": [("NVMe", 2048),("SSD", 1024)]
         },
     ]
 
