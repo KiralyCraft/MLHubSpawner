@@ -12,6 +12,13 @@ class RemoteGenericHost(Configurable):
     # Whether exclusive access is enabled (True/False)
     exclusive_access_enabled = Bool(help="Whether exclusive access is enabled").tag(config=True, private_info = True)
 
+
+    # ==== METHODS ====
+
+    def total_instances(self):
+        return len(self.hostnames)
+
+    # ====
     def toDictionary(self):
         # Iterate over all configurable traits and return a dict of name: value.
         data = {}
@@ -20,7 +27,7 @@ class RemoteGenericHost(Configurable):
                 data[name] = getattr(self, name)
 
         # Include metadata about the host here, such as the number of total instances
-        data["total_instances"] = len(self.hostnames)
+        data["total_instances"] = self.total_instances()
 
         return data
 

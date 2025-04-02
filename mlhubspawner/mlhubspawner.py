@@ -7,7 +7,12 @@ from jupyterhub.spawner import Spawner
 from .remote_hosts.remote_ml_host import RemoteMLHost
 from .config_parsers import DictionaryInstanceParser
 from .form_builder import JupyterFormBuilder
+from .exceptions.jupyter_html_exception import JupyterHubHTMLException
 from .state_manager import spawner_load_state, spawner_get_state, spawner_clear_state
+from .account_manager import get_privilege, get_safe_username
+
+# Python imports
+import time
 
 class MLHubSpawner(Spawner):
 
@@ -18,9 +23,29 @@ class MLHubSpawner(Spawner):
         super().__init__(**kwargs)
         self.form_builder = JupyterFormBuilder()
 
+        self.state_codename = None
+        self.state_hostname = None
+
+
     #==== STARTING, STOPPPING, POLLING ====
+    def __slowError(self, errorMessage):
+        time.sleep(10) # Needed until https://github.com/jupyterhub/jupyterhub/pull/5020 is merged
+        raise JupyterHubHTMLException(errorMessage) 
+
     async def start(self):
-        self.log.info("Remote cmd: " + str(self.user_options))
+        starting_username = self.user.name
+        safe_username = get_safe_username(starting_username)
+
+        machine_select = self.user_options['machineSelect']
+        exclusive_access_desired = self.user_options['exclusiveAccess']
+        is_privileged = (get_privilege(starting_username) >= 1)
+
+        if exclusive_access_desired == True and is_privileged == False:
+            self.__slowError("Your account privilege does not allow for exclusive access to GPU machines.")
+        
+        #=== FIND MACHINE ===
+        self.log.info("yeah" + safe_username)
+        return ("0.0.0.0","3306")
 
     async def poll(self):
         pass
@@ -55,6 +80,4 @@ class MLHubSpawner(Spawner):
 
     # Parse the form data into the correct types. The values here are available in the "start" method as "self.user_options"
     def options_from_form(self, formdata):
-        options = {}
-        options['machineSelect'] = int(formdata['machineSelect'][0]) # The index of the remote_hosts machine
-        return options
+        return self.form_builder.get_form_options(formdata)

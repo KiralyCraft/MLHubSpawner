@@ -26,6 +26,15 @@ class JupyterFormBuilder():
             except Exception as e:
                 self.form_html_content = f"FORM_TEMPLATE_ERROR (local): {e}"
 
+    def _safe_fetch(self, formdata, key, default):
+        return formdata[key][0] if key in formdata else default
+
     def get_html_page(self, dicitonaryList):
         jsonDictionary = json.dumps(dicitonaryList)
         return self.form_html_content.replace("{machineData}",jsonDictionary)
+
+    def get_form_options(self, formdata):
+        options = {}
+        options['machineSelect'] = int(self._safe_fetch(formdata, 'machineSelect', 0))
+        options['exclusiveAccess'] = bool(self._safe_fetch(formdata, 'exclusiveAccess', False))
+        return options

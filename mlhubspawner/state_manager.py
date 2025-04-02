@@ -14,15 +14,20 @@ def spawner_load_state(spawner_self, state):
     if "hostname" in state:
         spawner_self.state_hostname = state["hostname"]
 
-    # Validate that the saved codename and hostname are still valid.
+    # Only validate if both codename and hostname are present.
+    if not spawner_self.state_codename or not spawner_self.state_hostname:
+        spawner_clear_state(spawner_self)
+        return
+
     valid = False
     for host in spawner_self.remote_hosts:
         if host.codename == spawner_self.state_codename:
             if spawner_self.state_hostname in host.hostnames:
                 valid = True
                 break
+
     if not valid:
-        SpawnerStateManager.clear_state(spawner_self)
+        spawner_clear_state(spawner_self)
 
 def spawner_get_state(spawner_self):
     """
