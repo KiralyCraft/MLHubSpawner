@@ -18,6 +18,10 @@ class RemoteGenericHost(Configurable):
         for name, trait in self.traits(config=True).items():
             if not trait.metadata.get("private_info", False):
                 data[name] = getattr(self, name)
+
+        # Include metadata about the host here, such as the number of total instances
+        data["total_instances"] = len(self.hostnames)
+
         return data
 
     def toJSON(self):

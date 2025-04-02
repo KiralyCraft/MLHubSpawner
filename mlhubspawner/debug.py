@@ -14,7 +14,7 @@ if __name__ == "__main__":
     config.MLHubSpawner.remote_hosts = [
         {
             "codename": "Brocoli",
-            "hostnames": [ "RTX 4090 - N4" , "asdf"],
+            "hostnames": [ "RTX 4090 - N4" , "asdf" , "asdff"],
             "port": 9000,
             "exclusive_access_enabled": False,
             "cpu_model": "Intel Xeon",
