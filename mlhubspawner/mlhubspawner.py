@@ -18,14 +18,23 @@ import time
 
 class MLHubSpawner(Spawner):
 
-    # Remote hosts read from the configuration file
+    # Remote hosts read from the configuration file. This is initialized per-instance!!
     remote_hosts = List(DictionaryInstanceParser(RemoteMLHost), help="Possible remote hosts from which to choose remote_host.", config=True)
 
     # Class-level MachineManager for load balancing
-    machine_manager = MachineManager(remote_hosts)
+    _machine_manager = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+
+        #=== SINGLETONS ===
+        cls = type(self)
+        if cls._machine_manager is None:
+            # Here, self.remote_hosts is fully initialized by traitlets.
+            cls._machine_manager = MachineManager(self.remote_hosts)
+
+        #=== NORMAL INIT ===
+
         self.form_builder = JupyterFormBuilder()
         self.notebook_manager = NotebookManager()
 
@@ -56,13 +65,13 @@ class MLHubSpawner(Spawner):
             self.__slowError("Your account privilege does not allow for exclusive access to GPU machines.")
         
         #=== FIND MACHINE ===
-        found_machine_ip_port = MLHubSpawner.machine_manager.find_machine(chosen_machine_type, shared_access_enabled)
+        found_machine_ip_port = self.__class__._machine_manager.find_machine(chosen_machine_type, shared_access_enabled)
 
         if found_machine_ip_port == None:
             self.__slowError("We're sorry, but there is no available machine that meets your current requirements.")
 
         #=== RESERVE SPOT ===
-        if not MLHubSpawner.machine_manager.take_machine(chosen_machine_type, found_machine_ip_port, self.user_unique_identifier, shared_access_enabled):
+        if not self.__class__._machine_manager.take_machine(chosen_machine_type, found_machine_ip_port, self.user_unique_identifier, shared_access_enabled):
             self.__slowError("We're sorry, but we were unable to reserve you a spot on your desired machine.")
 
         self.state_hostname = found_machine_ip_port
@@ -75,7 +84,7 @@ class MLHubSpawner(Spawner):
         (notebook_port, notebook_pid) = self.notebook_manager.launch_notebook(host_ip, host_port, self.user_safe_username)
 
         if notebook_port == None or notebook_pid == None:
-            MLHubSpawner.machine_manager.release_machine(self.user_unique_identifier)
+            self.__class__._machine_manager.release_machine(self.user_unique_identifier)
             self.__slowError("We're sorry, we were unable to launch your notebook instance. Your reserved spot was therefore released.")
 
         self.state_notebook_port = notebook_port
@@ -90,7 +99,7 @@ class MLHubSpawner(Spawner):
             return 0
         
         #=== NOTEBOOK DEAD ===
-        notebook_alive = self.notebook_manager.check_alive()
+        notebook_alive = self.notebook_manager.check_notebook_alive()
         if not notebook_alive:
             return 0
 
@@ -102,7 +111,7 @@ class MLHubSpawner(Spawner):
         self.notebook_manager.kill_notebook()
 
         #=== RELEASE THE SPOT ===
-        MLHubSpawner.machine_manager.release_machine(self.user_unique_identifier)
+        self.__class__._machine_manager.release_machine(self.user_unique_identifier)
         self.clear_state()
 
     #==== STATE RESTORE ===
@@ -127,11 +136,11 @@ class MLHubSpawner(Spawner):
 
     # Return the actual HTML page for the form. Only show users things they have access to.
     def _options_form_default(self):
-        available_remote_hosts = MLHubSpawner.machine_manager.get_available_types(self.user_privilege_level)
+        available_remote_hosts = self.__class__._machine_manager.get_available_types(self.user_privilege_level)
 
         self.machine_offers[self.user_unique_identifier] = available_remote_hosts
 
-        available_remote_hosts_dictionary = [iterated_host.toDictionary() for iterated_host in self.remote_hosts]
+        available_remote_hosts_dictionary = [iterated_host.toDictionary() for iterated_host in available_remote_hosts]
         return self.form_builder.get_html_page(available_remote_hosts_dictionary)
 
     # Parse the form data into the correct types. The values here are available in the "start" method as "self.user_options"
