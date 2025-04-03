@@ -41,7 +41,7 @@ class MLHubSpawner(Spawner):
             cls._machine_manager_lock = Lock()
         #=== NORMAL INIT ===
         self.form_builder = JupyterFormBuilder()
-        self.notebook_manager = NotebookManager()
+        self.notebook_manager = NotebookManager(self.log,"jupyterhub-singleuser --config=~/.jupyter/jupyter_notebook_config.py --ip 0.0.0.0")
 
         self.state_pid = 0
         self.state_hostname = None
@@ -95,7 +95,7 @@ class MLHubSpawner(Spawner):
         host_ip = split_hostname[0]
         host_port = split_hostname[1] 
 
-        (notebook_port, notebook_pid) = self.notebook_manager.launch_notebook(host_ip, host_port, self.user_safe_username)
+        (notebook_port, notebook_pid) = await self.notebook_manager.launch_notebook(self.get_env(), self.hub.api_url, host_ip, host_port, self.user_safe_username)
 
         if notebook_port == None or notebook_pid == None:
             self.__class__._machine_manager.release_machine(self.user_unique_identifier)
@@ -115,7 +115,7 @@ class MLHubSpawner(Spawner):
             return 0
         
         #=== NOTEBOOK DEAD ===
-        notebook_alive = self.notebook_manager.check_notebook_alive()
+        notebook_alive = await self.notebook_manager.check_notebook_alive()
         if not notebook_alive:
             return 0
 
@@ -124,7 +124,7 @@ class MLHubSpawner(Spawner):
 
     async def stop(self, now = False):
         #=== KILL THE NOTEBOOK ===
-        self.notebook_manager.kill_notebook()
+        await self.notebook_manager.kill_notebook()
 
         #=== RELEASE THE SPOT ===
         self.__class__._machine_manager_lock.acquire()
