@@ -15,6 +15,7 @@ from .notebook_manager import NotebookManager
 
 # Python imports
 import time
+from threading import Lock
 
 class MLHubSpawner(Spawner):
 
@@ -23,6 +24,9 @@ class MLHubSpawner(Spawner):
 
     # Class-level MachineManager for load balancing
     _machine_manager = None
+
+    # Class-level Lock for machine allocation
+    _machine_manager_lock = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -33,8 +37,9 @@ class MLHubSpawner(Spawner):
             # Here, self.remote_hosts is fully initialized by traitlets.
             cls._machine_manager = MachineManager(self.remote_hosts)
 
+        if cls._machine_manager_lock is None:
+            cls._machine_manager_lock = Lock()
         #=== NORMAL INIT ===
-
         self.form_builder = JupyterFormBuilder()
         self.notebook_manager = NotebookManager()
 
@@ -58,24 +63,33 @@ class MLHubSpawner(Spawner):
         selected_machine_index = self.user_options['machineSelect']
         shared_access_enabled = self.user_options['sharedAccess']
 
+        if self.user_unique_identifier not in self.machine_offers:
+            self.__slowError("Something didn't go well. Please go to the main page and try again.")
+
         chosen_machine_type = self.machine_offers[self.user_unique_identifier][selected_machine_index]
         is_privileged = (self.user_privilege_level >= 1)
 
         if shared_access_enabled == False and is_privileged == False:
             self.__slowError("Your account privilege does not allow for exclusive access to GPU machines.")
         
+
         #=== FIND MACHINE ===
+        self.__class__._machine_manager_lock.acquire()
+
         found_machine_ip_port = self.__class__._machine_manager.find_machine(chosen_machine_type, shared_access_enabled)
 
         if found_machine_ip_port == None:
             self.__slowError("We're sorry, but there is no available machine that meets your current requirements.")
 
+        self.log.info(f"Found machine for {self.user_unique_identifier}: {chosen_machine_type.codename} at {found_machine_ip_port}.")
         #=== RESERVE SPOT ===
         if not self.__class__._machine_manager.take_machine(chosen_machine_type, found_machine_ip_port, self.user_unique_identifier, shared_access_enabled):
             self.__slowError("We're sorry, but we were unable to reserve you a spot on your desired machine.")
 
-        self.state_hostname = found_machine_ip_port
+        self.log.info(f"Reserved a spot for {self.user_unique_identifier} on {found_machine_ip_port}. Shared access: {shared_access_enabled}")
 
+        self.state_hostname = found_machine_ip_port
+        self.__class__._machine_manager_lock.release()
         #=== LAUNCH NOTEBOOK ===
         split_hostname = found_machine_ip_port.split(":")
         host_ip = split_hostname[0]
@@ -86,6 +100,8 @@ class MLHubSpawner(Spawner):
         if notebook_port == None or notebook_pid == None:
             self.__class__._machine_manager.release_machine(self.user_unique_identifier)
             self.__slowError("We're sorry, we were unable to launch your notebook instance. Your reserved spot was therefore released.")
+
+        self.log.info(f"Launched a notebook for {self.user_unique_identifier} on {found_machine_ip_port} with port {notebook_port} and PID {notebook_pid}")
 
         self.state_notebook_port = notebook_port
         self.state_pid = notebook_pid
@@ -111,7 +127,11 @@ class MLHubSpawner(Spawner):
         self.notebook_manager.kill_notebook()
 
         #=== RELEASE THE SPOT ===
+        self.__class__._machine_manager_lock.acquire()
+        self.log.info(f"Releasing the machine of {self.user_unique_identifier}")
         self.__class__._machine_manager.release_machine(self.user_unique_identifier)
+        self.__class__._machine_manager_lock.release()
+
         self.clear_state()
 
     #==== STATE RESTORE ===

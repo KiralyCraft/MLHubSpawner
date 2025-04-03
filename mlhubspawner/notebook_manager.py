@@ -3,10 +3,10 @@ class NotebookManager():
         pass
 
     def launch_notebook(self, host_ip : str, host_port : str, safe_username : str):
-        pass
+        return (None, None)
 
     def check_notebook_alive(self):
-        pass
+        return False
 
     def kill_notebook(self):
         pass
