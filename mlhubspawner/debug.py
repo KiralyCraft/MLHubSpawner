@@ -17,6 +17,7 @@ if __name__ == "__main__":
             "hostnames": [ "RTX 4090 - N4" , "asdf" , "asdff"],
             "port": 9000,
             "exclusive_access_enabled": False,
+            "privileged_access_required": True,
             "cpu_model": "Intel Xeon",
             "cpu_cores": 16,
             "ram": 64,
@@ -28,6 +29,7 @@ if __name__ == "__main__":
             "hostnames":  [ "RTX 4090 - N1" , "asdffdsa"],
             "port": 9001,
             "exclusive_access_enabled": True,
+            "privileged_access_required": False,
             "cpu_model": "AMD EPYC",
             "cpu_cores": 32,
             "ram": 128,
@@ -42,6 +44,6 @@ if __name__ == "__main__":
     #spawner.user.name = "alexandru.kiraly@ubbcluj.ro"
 
     # Check what remote_hosts is set to:
-    print("remote_hosts:", spawner.debug())
-    #print("Options form:", spawner._options_form_default())
+    #print("remote_hosts:", spawner.debug())
+    print("Options form:", spawner._options_form_default())
 

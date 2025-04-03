@@ -12,6 +12,9 @@ class RemoteGenericHost(Configurable):
     # Whether shared access is enabled (True/False)
     shared_access_enabled = Bool(help="Whether shared access is enabled").tag(config=True, private_info = True)
 
+    # Whether privileged access is required to access this host
+    privileged_access_required = Bool(help="Whether privileged access is required to access this host").tag(config=True, private_info = True)
+
 
     # ==== METHODS ====
 
