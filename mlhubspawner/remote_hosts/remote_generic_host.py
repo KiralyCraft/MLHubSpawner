@@ -9,8 +9,8 @@ class RemoteGenericHost(Configurable):
     # Define fields for a remote host.
     hostnames = List(Unicode(), help="List of hostnames where this machine type is available").tag(config=True, private_info = True)
 
-    # Whether exclusive access is enabled (True/False)
-    exclusive_access_enabled = Bool(help="Whether exclusive access is enabled").tag(config=True, private_info = True)
+    # Whether shared access is enabled (True/False)
+    shared_access_enabled = Bool(help="Whether shared access is enabled").tag(config=True, private_info = True)
 
 
     # ==== METHODS ====

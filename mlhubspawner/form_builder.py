@@ -36,5 +36,5 @@ class JupyterFormBuilder():
     def get_form_options(self, formdata):
         options = {}
         options['machineSelect'] = int(self._safe_fetch(formdata, 'machineSelect', 0))
-        options['exclusiveAccess'] = bool(self._safe_fetch(formdata, 'exclusiveAccess', False))
+        options['sharedAccess'] = bool(self._safe_fetch(formdata, 'sharedAccess', False))
         return options

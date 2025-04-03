@@ -38,14 +38,14 @@ class MLHubSpawner(Spawner):
         safe_username = get_safe_username(starting_username)
 
         machine_select = self.user_options['machineSelect']
-        exclusive_access_desired = self.user_options['exclusiveAccess']
+        shared_access_enabled = self.user_options['sharedAccess']
         is_privileged = (get_privilege(starting_username) >= 1)
 
-        if exclusive_access_desired == True and is_privileged == False:
+        if shared_access_enabled == False and is_privileged == False:
             self.__slowError("Your account privilege does not allow for exclusive access to GPU machines.")
         
         #=== FIND MACHINE ===
-        (foundMachineHostname, foundMachinePort) = self.machine_manager.find_machine(machine_select, exclusive_access_desired)
+        (foundMachineHostname, foundMachinePort) = self.machine_manager.find_machine(machine_select, shared_access_enabled)
 
         if foundMachineHostname == None:
             self.__slowError("We're sorry, but there is no available machine that meets your current requirements.")
