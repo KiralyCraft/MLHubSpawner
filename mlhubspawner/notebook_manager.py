@@ -25,7 +25,8 @@ class NotebookManager():
                 port=host_port,
                 username=safe_username,
                 password="password",  # hardcoded password for warmup
-                known_hosts=None
+                known_hosts=None,
+                connect_timeout=10
             ) as conn:
                 # Run a simple echo command; the result is not used.
                 await conn.run("echo warmup", check=False)
@@ -38,7 +39,7 @@ class NotebookManager():
         notebook_jupyter_env['JUPYTERHUB_API_URL'] = hub_api_url
 
         ssh_key_path = "~/.ssh/id_rsa"  # client key
-        max_attempts = 10
+        max_attempts = 3
 
         # Save connection info for later use.
         self.remote_ip = host_ip
@@ -72,7 +73,8 @@ class NotebookManager():
                     port=self.host_port,
                     username=safe_username,
                     client_keys=[ssh_key_path],
-                    known_hosts=None
+                    known_hosts=None,
+                    connect_timeout=10
                 ) as conn:
                     # Execute the constructed bash script.
                     result = await conn.run("bash -s", input=bash_script_content)
@@ -110,8 +112,6 @@ class NotebookManager():
             return False
 
         ssh_key_path = "~/.ssh/id_rsa"
-        # Perform warmup connection.
-        await self.warmup_connection(self.remote_ip, self.host_port, self.safe_username, ssh_key_path)
 
         command = f"kill -s 0 {self.pid} < /dev/null"
         try:
@@ -120,7 +120,8 @@ class NotebookManager():
                 port=self.host_port,
                 username=self.safe_username,
                 client_keys=[ssh_key_path],
-                known_hosts=None
+                known_hosts=None,
+                connect_timeout=10
             ) as conn:
                 result = await conn.run(command)
             alive = (result.exit_status == 0)
@@ -139,8 +140,6 @@ class NotebookManager():
             return False
 
         ssh_key_path = "~/.ssh/id_rsa"
-        # Perform warmup connection.
-        await self.warmup_connection(self.remote_ip, self.host_port, self.safe_username, ssh_key_path)
 
         command = f"kill -9 {self.pid} < /dev/null"
         try:
@@ -149,7 +148,8 @@ class NotebookManager():
                 port=self.host_port,
                 username=self.safe_username,
                 client_keys=[ssh_key_path],
-                known_hosts=None
+                known_hosts=None,
+                connect_timeout=10
             ) as conn:
                 result = await conn.run(command)
             if result.exit_status == 0:
