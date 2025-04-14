@@ -1,6 +1,6 @@
 
 # JupyterHub imports
-from traitlets import List, Instance
+from traitlets import List, Instance, Unicode
 from jupyterhub.spawner import Spawner
 
 # Local imports
@@ -12,6 +12,7 @@ from .state_manager import spawner_load_state, spawner_get_state, spawner_clear_
 from .account_manager import get_privilege, get_safe_username
 from .machine_manager import MachineManager
 from .notebook_manager import NotebookManager
+from .minio_manager import MinIOManager
 
 # Python imports
 import time
@@ -22,11 +23,19 @@ class MLHubSpawner(Spawner):
     # Remote hosts read from the configuration file. This is initialized per-instance!!
     remote_hosts = List(DictionaryInstanceParser(RemoteMLHost), help="Possible remote hosts from which to choose remote_host.", config=True)
 
+    # MinIO credentials and URLs
+    minio_url = Unicode(help="The URL endpoint for the MinIO server.", config=True)
+    minio_access_key = Unicode(help="Access key for MinIO authentication.", config=True)
+    minio_secret_key = Unicode(help="Secret key for MinIO authentication.", config=True)
+
     # Class-level MachineManager for load balancing
     _machine_manager = None
 
     # Class-level Lock for machine allocation
     _machine_manager_lock = None
+
+    # Class-level singleton instance for MinIOManager
+    _minio_manager = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -39,6 +48,11 @@ class MLHubSpawner(Spawner):
 
         if cls._machine_manager_lock is None:
             cls._machine_manager_lock = Lock()
+
+        # Initialize MinIOManager singleton if not already created.
+        if cls._minio_manager is None:
+            cls._minio_manager = MinIOManager(self.minio_url, self.minio_access_key, self.minio_secret_key)
+
         #=== NORMAL INIT ===
         self.form_builder = JupyterFormBuilder()
         self.notebook_manager = NotebookManager(self.log,"jupyterhub-singleuser --config=~/.jupyter/jupyter_notebook_config.py --ip 0.0.0.0")
@@ -59,7 +73,6 @@ class MLHubSpawner(Spawner):
         raise JupyterHubHTMLException(errorMessage) 
 
     async def start(self):
-
         selected_machine_index = self.user_options['machineSelect']
         shared_access_enabled = self.user_options['sharedAccess']
 
@@ -90,6 +103,25 @@ class MLHubSpawner(Spawner):
 
         self.state_hostname = found_machine_ip_port
         self.__class__._machine_manager_lock.release()
+
+        #=== CREATE BUCKET ===
+        try:
+            auth_state = await self.user.get_auth_state()
+            
+            if not auth_state or 'user' not in auth_state:
+                self.__slowError("Authentication state is missing or does not contain 'user' data.")
+
+            azure_id = auth_state['user'].get('oid')
+            if not azure_id:
+                self.__slowError("User OID not found in authentication state.")
+
+            if not self.__class__._minio_manager.create(azure_id):
+                self.__slowError(f"Bucket creation failed for user with OID: {azure_id}.")
+            else:
+                self.log.info(f"Bucket successfully created (or already exists) for user with OID: {azure_id}.")
+        except Exception as error:
+            self.__slowError(f"Error during bucket creation: {error}")
+
         #=== LAUNCH NOTEBOOK ===
         split_hostname = found_machine_ip_port.split(":")
         host_ip = split_hostname[0]
