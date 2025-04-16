@@ -44,13 +44,13 @@ class MLHubSpawner(Spawner):
         cls = type(self)
         if cls._machine_manager is None:
             # Here, self.remote_hosts is fully initialized by traitlets.
-            cls._machine_manager = MachineManager(self.remote_hosts)
+            cls._machine_manager = MachineManager(self.log, self.remote_hosts)
 
         if cls._machine_manager_lock is None:
             cls._machine_manager_lock = Lock()
 
         # Initialize MinIOManager singleton if not already created.
-        if cls._minio_manager is None:
+        if (cls._minio_manager is None) and (self.minio_url):
             cls._minio_manager = MinIOManager(self.minio_url, self.minio_access_key, self.minio_secret_key)
 
         #=== NORMAL INIT ===
@@ -105,22 +105,25 @@ class MLHubSpawner(Spawner):
         self.__class__._machine_manager_lock.release()
 
         #=== CREATE BUCKET ===
-        try:
-            auth_state = await self.user.get_auth_state()
-            
-            if not auth_state or 'user' not in auth_state:
-                self.__slowError("Authentication state is missing or does not contain 'user' data.")
+        if self.minio_url:
+            try:
+                auth_state = await self.user.get_auth_state()
+                
+                if not auth_state or 'user' not in auth_state:
+                    self.__slowError("Authentication state is missing. Did you log in via OAuth?")
 
-            azure_id = auth_state['user'].get('oid')
-            if not azure_id:
-                self.__slowError("User OID not found in authentication state.")
+                azure_id = auth_state['user'].get('oid')
+                if not azure_id:
+                    self.__slowError("User OID not found in authentication state.")
 
-            if not self.__class__._minio_manager.create(azure_id):
-                self.__slowError(f"Bucket creation failed for user with OID: {azure_id}.")
-            else:
-                self.log.info(f"Bucket successfully created (or already exists) for user with OID: {azure_id}.")
-        except Exception as error:
-            self.__slowError(f"Error during bucket creation: {error}")
+                if not self.__class__._minio_manager.create(azure_id):
+                    self.__slowError(f"Bucket creation failed for user with OID: {azure_id}.")
+                else:
+                    self.log.info(f"Bucket successfully created (or already exists) for user with OID: {azure_id}.")
+            except Exception as error:
+                self.__slowError(f"Error during bucket creation: {error}")
+        else:
+            self.log.info("Minio URL not provided in config, skipping bucket creation")
 
         #=== LAUNCH NOTEBOOK ===
         split_hostname = found_machine_ip_port.split(":")
