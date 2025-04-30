@@ -28,73 +28,66 @@ class MachineManager:
     def find_machine(self, chosen_machine_type: RemoteGenericHost, requested_shared_mode: bool) -> Optional[str]:
         """
         Return an available machine hostname for the given machine type and requested access mode.
-        
+
         For an exclusive request (requested_shared_mode == False):
-          - The machine is eligible if it is completely free (no allocations) and is online.
-        
+        - The machine is eligible if it is completely free (no allocations) and is online.
+
         For a shared request (requested_shared_mode == True):
-          - The chosen machine type must support sharing.
-          - A machine is eligible if it is online and none of its current allocations were taken exclusively.
-          - Among eligible machines, the one with the fewest current allocations is returned.
-        
+        - The chosen machine type must support sharing.
+        - A machine is eligible if it is online and none of its current allocations were taken exclusively.
+        - Among eligible machines, the one with the fewest current allocations is returned,
+            but if any eligible machine has zero allocations, it’s returned immediately.
+
         Note: This method must be called under an external mutex lock.
         """
+        # If they asked for shared but the type doesn’t support it, bail out
         if requested_shared_mode and not chosen_machine_type.shared_access_enabled:
-            self.upstream_logger.info("[MachineManager] Requested shared mode but machine type with codename %s does not support shared access.", chosen_machine_type.codename)
+            self.upstream_logger.info("[MachineManager] Requested shared mode but machine type %s does not support shared access.", chosen_machine_type.codename)
             return None
 
-        # Exclusive request: choose a hostname that is completely free.
+        # Exclusive request: choose the first online host with zero allocations
         if not requested_shared_mode:
             for hostname in chosen_machine_type.hostnames:
-                self.upstream_logger.info("[MachineManager] Attempting hostname: %s (for machine type: %s)", hostname, chosen_machine_type.codename)
+                self.upstream_logger.info("[MachineManager] Attempting hostname: %s (type: %s)", hostname, chosen_machine_type.codename)
                 if not self.is_machine_online(hostname):
                     self.upstream_logger.info("[MachineManager] Hostname %s is offline, skipping.", hostname)
                     continue
-                allocation_list = self.hostname_allocations.get(hostname, [])
-                self.upstream_logger.info("[MachineManager] Hostname %s (for machine type: %s) allocation count: %d", hostname, chosen_machine_type.codename, len(allocation_list))
-                if allocation_list:
-                    self.upstream_logger.info("[MachineManager] Allocations for hostname %s:\n%s", hostname, "\n".join(str(UID) for UID in allocation_list))
-                if not allocation_list:
-                    self.upstream_logger.info("[MachineManager] Hostname %s (for machine type: %s) is free, selecting for exclusive allocation.", hostname, chosen_machine_type.codename)
+                allocs = self.hostname_allocations.get(hostname, [])
+                self.upstream_logger.info("[MachineManager] %s allocation count: %d", hostname, len(allocs))
+                if not allocs:
+                    self.upstream_logger.info("[MachineManager] Hostname %s is free, selecting for exclusive allocation.", hostname)
                     return hostname
-            self.upstream_logger.info("[MachineManager] No online, free hostname found for exclusive allocation for machine type %s.", chosen_machine_type.codename)
+            self.upstream_logger.info("[MachineManager] No online, free hostname found for exclusive allocation for type %s.", chosen_machine_type.codename)
             return None
 
-        # Shared request: choose a hostname that has no exclusive allocation.
-        else:
-            selected_hostname = None
-            min_alloc_count = float('inf')
-            for hostname in chosen_machine_type.hostnames:
-                self.upstream_logger.info("[MachineManager] Attempting hostname: %s (for machine type: %s)", hostname, chosen_machine_type.codename)
-                if not self.is_machine_online(hostname):
-                    self.upstream_logger.info("[MachineManager] Hostname %s is offline, skipping.", hostname)
-                    continue
-                allocation_list = self.hostname_allocations.get(hostname, [])
-                self.upstream_logger.info("[MachineManager] Hostname %s (for machine type: %s) allocation count: %d", hostname, chosen_machine_type.codename, len(allocation_list))
-                if allocation_list:
-                    self.upstream_logger.info("[MachineManager] Allocations for hostname %s:\n%s", hostname, "\n".join(str(UID) for UID in allocation_list))
-                
-                # Check if any allocation on this hostname was taken exclusively.
-                exclusive_found = False
-                for UID in allocation_list:
-                    if self.allocations[UID]['shared_access_enabled'] is False:
-                        exclusive_found = True
-                        self.upstream_logger.info("[MachineManager] Exclusive allocation found for hostname %s (UID: %s), skipping.", hostname, UID)
-                        break
+        # Shared request: prefer the first zero-allocation host, otherwise track the fewest
+        selected_hostname = None
+        for hostname in chosen_machine_type.hostnames:
+            self.upstream_logger.info("[MachineManager] Attempting hostname: %s (type: %s)", hostname, chosen_machine_type.codename)
+            if not self.is_machine_online(hostname):
+                self.upstream_logger.info("[MachineManager] Hostname %s is offline, skipping.", hostname)
+                continue
+            allocs = self.hostname_allocations.get(hostname, [])
+            self.upstream_logger.info("[MachineManager] %s allocation count: %d", hostname, len(allocs))
+            # skip if any allocation was exclusive
+            if any(not self.allocations[UID]['shared_access_enabled'] for UID in allocs):
+                self.upstream_logger.info("[MachineManager] Exclusive allocation present on %s, skipping.", hostname)
+                continue
+            # immediate pick if free
+            if not allocs:
+                self.upstream_logger.info("[MachineManager] Hostname %s is free, selecting for shared allocation.", hostname)
+                return hostname
+            # otherwise pick the least-burdened so far
+            if selected_hostname is None or len(allocs) < len(self.hostname_allocations[selected_hostname]):
+                selected_hostname = hostname
 
-                if exclusive_found:
-                    continue
-
-                alloc_count = len(allocation_list)
-                if alloc_count < min_alloc_count:
-                    min_alloc_count = alloc_count
-                    selected_hostname = hostname
-
-            if selected_hostname:
-                self.upstream_logger.info("[MachineManager] Selected hostname %s (for machine type: %s) with allocation count %d.", selected_hostname, chosen_machine_type.codename, min_alloc_count)
-            else:
-                self.upstream_logger.info("[MachineManager] No eligible hostname found for shared access for machine type %s.", chosen_machine_type.codename)
+        if selected_hostname:
+            self.upstream_logger.info("[MachineManager] Selected hostname %s with allocation count %d for shared allocation.", selected_hostname, len(self.hostname_allocations[selected_hostname]))
             return selected_hostname
+
+        self.upstream_logger.info("[MachineManager] No eligible hostname found for shared access for type %s.", chosen_machine_type.codename)
+        return None
+
 
     def take_machine(self, chosen_machine_type: RemoteGenericHost, machine_ip_port: str, unique_identifier: str, requested_shared_mode: bool):
         """
