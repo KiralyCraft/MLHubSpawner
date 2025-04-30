@@ -54,16 +54,16 @@ class MLHubSpawner(Spawner):
             cls._minio_manager = MinIOManager(self.minio_url, self.minio_access_key, self.minio_secret_key)
 
         #=== NORMAL INIT ===
+        self.user_unique_identifier = self.user.name
+        self.user_safe_username = get_safe_username(self.user.name) # This is already set here already
+        self.user_privilege_level = get_privilege(self.user.name)
+
         self.form_builder = JupyterFormBuilder()
-        self.notebook_manager = NotebookManager(self.log,"jupyterhub-singleuser --config=~/.jupyter/jupyter_notebook_config.py --ip 0.0.0.0")
+        self.notebook_manager = NotebookManager(self.log,"jupyterhub-singleuser --config=~/.jupyter/jupyter_notebook_config.py --ip 0.0.0.0", self.user_safe_username)
 
         self.state_pid = 0
         self.state_hostname = None
         self.state_notebook_port = None
-
-        self.user_unique_identifier = self.user.name
-        self.user_safe_username = get_safe_username(self.user.name) # This is already set here already
-        self.user_privilege_level = get_privilege(self.user.name)
 
         self.machine_offers = {}
 
@@ -138,7 +138,7 @@ class MLHubSpawner(Spawner):
         host_ip = split_hostname[0]
         host_port = split_hostname[1] 
 
-        (notebook_port, notebook_pid) = await self.notebook_manager.launch_notebook(self.get_env(), self.hub.api_url, host_ip, host_port, self.user_safe_username)
+        (notebook_port, notebook_pid) = await self.notebook_manager.launch_notebook(self.get_env(), self.hub.api_url, host_ip, host_port)
 
         if notebook_port == None or notebook_pid == None:
             self.__class__._machine_manager.release_machine(self.user_unique_identifier)
@@ -183,6 +183,8 @@ class MLHubSpawner(Spawner):
     def load_state(self, state):
         super().load_state(state)
         spawner_load_state(self, state)
+        # Load the state into the NotebookManager as well, now that we have it (if any)
+        self.notebook_manager.restore_state(self.state_pid, self.state_hostname, self.state_notebook_port)
 
     # Retrieve the current state of the spawner as a dictionary.
     def get_state(self):
