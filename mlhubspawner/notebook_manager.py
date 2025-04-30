@@ -133,15 +133,11 @@ class NotebookManager():
 
     async def kill_notebook(self):
         """
-        Kill the notebook process on the remote host.
+        Kill all processes belonging to the safe_username on the remote host using SIGKILL.
         """
-        if not self.pid:
-            self.log.info("No PID available to kill. Notebook is not running.")
-            return False
-
         ssh_key_path = "~/.ssh/id_rsa"
+        command = f"pkill -9 -u {self.safe_username} < /dev/null"
 
-        command = f"kill -9 {self.pid} < /dev/null"
         try:
             async with asyncssh.connect(
                 self.remote_ip,
@@ -151,17 +147,37 @@ class NotebookManager():
                 known_hosts=None,
                 connect_timeout=10
             ) as conn:
-                result = await conn.run(command)
-            if result.exit_status == 0:
-                self.log.info(f"Notebook with PID {self.pid} killed successfully.")
-                self.pid = None  # Clear the stored PID since the process is terminated.
+                # Don't raise on non-zero; inspect exit_status & exit_signal ourselves
+                result = await conn.run(command, check=False)
+
+            status   = result.exit_status
+            sig_info = result.exit_signal
+
+            # Success if:
+            #  - killed ≥1 process (status == 0)
+            #  - pkill killed the SSH child so we get no status (status is None)
+            #  - old AsyncSSH pattern: status == -1 and exit_signal set
+            if status == 0 or status is None or (status == -1 and sig_info):
+                self.log.info(f"All processes for user '{self.safe_username}' were killed successfully.")
+                self.pid = None
                 return True
-            else:
-                self.log.info(f"Failed to kill notebook with PID {self.pid}. Exit status: {result.exit_status}")
+
+            # No matching processes
+            if status == 1:
+                self.log.info(f"No processes found for user '{self.safe_username}'. Nothing to kill.")
                 return False
-        except Exception as e:
-            self.log.info(f"Error killing notebook: {e}")
+
+            # Anything else is unexpected (should no longer fire on your “None” case)
+            self.log.info(
+                f"Unexpected result killing processes for '{self.safe_username}': exit_status={status!r}, exit_signal={sig_info!r}"
+            )
             return False
+
+        except Exception as e:
+            self.log.info(f"Exception while trying to kill processes for '{self.safe_username}': {e}")
+            return False
+
+
 
 
     def restore_state(self, pid: int, hostname: str, notebook_port: int):
