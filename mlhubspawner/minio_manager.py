@@ -1,3 +1,5 @@
+import re
+import uuid
 from minio import Minio
 from minio.error import S3Error
 
@@ -18,7 +20,6 @@ class MinIOManager:
         # Validate and determine the secure flag based on the URL prefix.
         if minio_url.startswith("https://"):
             secure = True
-            # Remove the scheme (e.g., "https://") to get the endpoint.
             endpoint = minio_url[len("https://"):]
         elif minio_url.startswith("http://"):
             secure = False
@@ -26,8 +27,33 @@ class MinIOManager:
         else:
             raise ValueError("minio_url must start with either 'http://' or 'https://'.")
 
-        self.client = Minio(endpoint,access_key=minio_access_key,secret_key=minio_secret_key,secure=secure)
+        self.client = Minio(
+            endpoint,
+            access_key=minio_access_key,
+            secret_key=minio_secret_key,
+            secure=secure
+        )
     
+    def generate_fallback_oid(raw_uid: str) -> str:
+        """
+        Produce a bucket-safe identifier by:
+          1. Stripping out any character except A–Z, a–z, 0–9, and dash.
+          2. Falling back to a random UUID hex if the result is empty.
+          3. Prefixing with 'nouid-'.
+        
+        Parameters:
+            raw_uid (str): An arbitrary user identifier that may contain invalid chars.
+        
+        Returns:
+            str: A sanitized identifier safe for bucket names.
+        """
+        # Remove all but letters, digits, and dashes
+        sanitized = re.sub(r"[^A-Za-z0-9-]", "", raw_uid or "")
+        if not sanitized:
+            # If nothing left, generate a random hex string
+            sanitized = uuid.uuid4().hex
+        return f"nouid-{sanitized}"
+
     def create(self, bucket_name: str) -> bool:
         """
         Create a bucket with the provided name if it does not exist.
@@ -39,10 +65,11 @@ class MinIOManager:
             bool: True if the bucket exists or is successfully created; False if there's an error.
         """
         try:
-            # Check if the bucket exists.
             if not self.client.bucket_exists(bucket_name):
-                # Create the bucket if it does not exist.
                 self.client.make_bucket(bucket_name)
             return True
-        except Exception as error:
+        except S3Error as error:
+            # Optionally log error.details or error.code here
+            return False
+        except Exception:
             return False
